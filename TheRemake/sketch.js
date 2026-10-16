@@ -72,13 +72,22 @@ let humanData = [
     "left",
     "down",
     "down",
+    "up",
+    "left",
+    "up",
+    "right",
+    "up",
+    "down",
+    "left",
+    "down",
+    "right",
     "up"
 ];
 
 let totalLines = 2000; 
 let x = 300;
 let y = 400; 
-let lineLength = 20;
+let lineLength = 50;
 let pathData = ""; // to save as SVG for pen plotter, from Antrhopic Claude Pro
 let computerPath = ""; // SVG
 let J = 12345; // for my own random number generator because I don't want to use random(), from Antrhopic Claude Pro 
@@ -110,7 +119,7 @@ let counts = [ // to go through data and count how many times each direction is 
 
 
 function setup() {
-    createCanvas(600, 800);
+    createCanvas(1728, 1296);
     background(255);
     pathData = "M " + x + " " + y; // for SVG, Claude Pro
 
@@ -129,7 +138,7 @@ function setup() {
         }
 
 
-        // line(x, y, newX, newY); //https://p5js.org/reference/p5/line/
+        line(x, y, newX, newY); //https://p5js.org/reference/p5/line/
         pathData = pathData + " L " + newX + " " + newY; // for SVG, Claude Pro
         x = newX; 
         y = newY;
@@ -175,16 +184,17 @@ function setup() {
 
 function keyPressed() { // for SVG export
     if (key === 's') {
-        // let svg = [];
-        // svg.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '">');
-        // svg.push('<path d="' + pathData + '" fill="none" stroke="black" stroke-width="1"/>');
-        // svg.push('</svg>');
-        // saveStrings(svg, 'human-maze', 'svg');
-        let svg2 = [];
-        svg2.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '">');
-        svg2.push('<path d="' + computerPath + '" fill="none" stroke="black" stroke-width="1"/>');
-        svg2.push('</svg>');
-        saveStrings(svg2, 'computer-maze', 'svg');
+        let svg = [];
+        svg.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '">');
+        svg.push('<path d="' + pathData + '" fill="none" stroke="black" stroke-width="1"/>');
+        svg.push('</svg>');
+        saveStrings(svg, 'human-maze', 'svg');
+
+    //     let svg2 = [];
+    //     svg2.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '">');
+    //     svg2.push('<path d="' + computerPath + '" fill="none" stroke="black" stroke-width="1"/>');
+    //     svg2.push('</svg>');
+    //     saveStrings(svg2, 'computer-maze', 'svg');
     }
 }
 
