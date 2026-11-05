@@ -41,7 +41,6 @@ function draw() {
   noFill();
 
   runPattern();
-  pullWithMouse();
 
   // flip the whole drawing so it mirrors the follicle sketch
   push();
@@ -214,24 +213,6 @@ function runPattern() {
 }
 
 // click and drag to pull hairs near the mouse
-function pullWithMouse() {
-  if (mouseIsPressed == true) {
-    // the drawing is flipped, so flip the mouse too
-    let mx = width - mouseX;
-    let my = mouseY;
-    for (let i = 0; i < follicles.length; i = i + 1) {
-      let f = follicles[i];
-      if (dist(f.x, f.y, mx, my) < 40) {
-        if (f.stage == "growing" || f.stage == "resting") {
-          shed(f);
-          // yank it toward the mouse
-          f.fallVX = (mx - f.x) * 0.15;
-          f.fallVY = (my - f.y) * 0.15 - 2;
-        }
-      }
-    }
-  }
-}
 
 // ---------- drawing ----------
 
