@@ -1,31 +1,38 @@
-let lifespanMinutes = 15;                    // one hair's life: growing + resting
-let lifeFrames = lifespanMinutes * 60 * 60;  // minutes x 60 seconds x 60 frames per second
+// Hair growing and falling out, mirrored to match the follicle sketch.
+// Permanent losses follow a schedule read from the clock,
+// so this sketch and the follicle sketch always agree.
+// Loops every 15 minutes (at :00, :15, :30, :45).
+//
+// KEYS
+// f = fullscreen
+
+let testMode = false;    // true = fast test run, false = real clock
+let testSpeed = 20;      // how many times faster than real time (test mode only)
 
 let wobbleSpeed = 0.0015; // sway speed
-let swayAmount = 4;      // how much the hair moves (0 = still, 30 = old amount)
+let swayAmount = 4;       // how much the hair moves (0 = still)
 let t = 0;
 
-// keep these the same as in the follicle sketch so the layouts match
+// keep these the same in BOTH sketches
 let spacing = 70;
 let minSize = 12;
 let maxSize = 26;
+let noRegrow = 0.4;      // how much of the scalp ends up bald
+let loopMinutes = 15;    // length of one full loop
+let lossStartMin = 1;    // minute of the loop when permanent loss begins
+let lossEndMin = 13;     // minute of the loop by which it's finished
 
 let minHair = 60;       // shortest strand
 let maxHair = 160;      // longest strand
 let longChance = 0.15;  // fraction of hairs that grow extra long (0.15 = 15%)
 let longHair = 450;     // how long those can get
 let swirl = 0.004;      // how quickly direction changes across the scalp
-let noRegrow = 0.4;     // how likely a shed hair stays gone (0 = always regrows, 1 = never)
+
+let lifespanMinutes = 15;                    // one hair's life: growing + resting
+let lifeFrames = lifespanMinutes * 60 * 60;  // minutes x 60 seconds x 60 frames per second
 
 let follicles = [];
-
-// which loss pattern is running
-let mode = "natural";
-let patchX = 0;
-let patchY = 0;
-let patchRadius = 0;
-let patchMax = 0;
-let recedeLine = 0;
+let lastNow = 0;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -33,6 +40,8 @@ function setup() {
   noiseSeed(7);
   makeFollicles();
   makeHair();
+  makeSchedule();
+  applyPastLosses();
 }
 
 function draw() {
@@ -40,17 +49,50 @@ function draw() {
   t = t + wobbleSpeed;
   noFill();
 
-  runPattern();
+  // new loop: bald follicles are allowed to grow back
+  let now = clockSeconds();
+  if (now < lastNow) {
+    for (let i = 0; i < follicles.length; i = i + 1) {
+      follicles[i].blocked = false;
+      if (follicles[i].stage == "empty") {
+        follicles[i].timer = random(10, 120);
+      }
+    }
+  }
+  lastNow = now;
 
   // flip the whole drawing so it mirrors the follicle sketch
   push();
   translate(width, 0);
   scale(-1, 1);
   for (let i = 0; i < follicles.length; i = i + 1) {
-    updateHair(follicles[i]);
-    drawHair(follicles[i], i);
+    let f = follicles[i];
+
+    // scheduled permanent loss
+    if (f.lossTime >= 0 && now >= f.lossTime && f.blocked == false) {
+      f.blocked = true;
+      shed(f);
+    }
+
+    updateHair(f);
+    drawHair(f, i);
   }
   pop();
+}
+
+// seconds since the start of the current loop
+// (or, in test mode, sped-up seconds since the page loaded)
+function clockSeconds() {
+  if (testMode == true) {
+    return millis() / 1000 * testSpeed;
+  } else {
+    // take away whole loops until we're inside the current one
+    let m = minute();
+    while (m >= loopMinutes) {
+      m = m - loopMinutes;
+    }
+    return m * 60 + second();
+  }
 }
 
 // ---------- setup ----------
@@ -98,9 +140,9 @@ function makeHair() {
 
     // where it is in the cycle
     f.stage = "growing";          // growing, resting, falling, empty
-    f.growth = random(0, 1);
-    f.growSpeed = 1 / (lifeFrames * random(0.55, 0.75));
-    f.timer = lifeFrames * random(0.25, 0.45);
+    f.growth = random(0, 1);      // start at random points so hairs aren't all in sync
+    f.growSpeed = 1 / (lifeFrames * random(0.55, 0.75)); // growing takes ~2/3 of its life
+    f.timer = 0;
     f.blocked = false;            // true = this follicle won't regrow
 
     // used while the strand falls
@@ -114,6 +156,35 @@ function makeHair() {
   }
 }
 
+// decide which follicles go bald and when (SAME in both sketches)
+function makeSchedule() {
+  randomSeed(21);
+  for (let i = 0; i < follicles.length; i = i + 1) {
+    let f = follicles[i];
+    // more likely in some areas, so losses gather into bald spots
+    let spotChance = noRegrow * noise(f.x * 0.006, f.y * 0.006, 90) * 2;
+    if (random(1) < spotChance) {
+      f.lossTime = random(lossStartMin * 60, lossEndMin * 60);
+    } else {
+      f.lossTime = -1; // never goes bald
+    }
+  }
+}
+
+// if the sketch opens mid-loop, start with past losses already bald
+function applyPastLosses() {
+  let now = clockSeconds();
+  lastNow = now;
+  for (let i = 0; i < follicles.length; i = i + 1) {
+    let f = follicles[i];
+    if (f.lossTime >= 0 && now >= f.lossTime) {
+      f.blocked = true;
+      f.stage = "empty";
+      f.growth = 0;
+    }
+  }
+}
+
 // ---------- the hair cycle ----------
 
 function updateHair(f) {
@@ -122,7 +193,7 @@ function updateHair(f) {
     if (f.growth >= 1) {
       f.growth = 1;
       f.stage = "resting";
-      f.timer = random(300, 1500); // frames to rest before shedding
+      f.timer = lifeFrames * random(0.25, 0.45); // resting takes the rest of its life
     }
   } else if (f.stage == "resting") {
     f.timer = f.timer - 1;
@@ -137,14 +208,7 @@ function updateHair(f) {
     f.fade = f.fade - 3;
     if (f.fade <= 0) {
       f.stage = "empty";
-      f.timer = lifeFrames * random(0.03, 0.08);
-
-      // some hairs never come back, more often in certain areas,
-      // so the losses gather into bald spots
-      let spotChance = noRegrow * noise(f.x * 0.006, f.y * 0.006, 90) * 2;
-      if (random(1) < spotChance) {
-        f.blocked = true;
-      }
+      f.timer = lifeFrames * random(0.03, 0.08); // short wait before regrowing
     }
   } else if (f.stage == "empty") {
     if (f.blocked == false) {
@@ -171,49 +235,6 @@ function shed(f) {
   }
 }
 
-// ---------- loss patterns ----------
-
-function runPattern() {
-  if (mode == "patch") {
-    if (patchRadius < patchMax) {
-      patchRadius = patchRadius + 1.5;
-    }
-    for (let i = 0; i < follicles.length; i = i + 1) {
-      let f = follicles[i];
-      let d = dist(f.x, f.y, patchX, patchY);
-      // noise makes the edge of the patch ragged instead of a perfect circle
-      let edge = patchRadius * (0.7 + noise(f.x * 0.01, f.y * 0.01) * 0.6);
-      if (d < edge) {
-        f.blocked = true;
-        shed(f);
-      }
-    }
-  } else if (mode == "recede") {
-    if (recedeLine < height * 0.5) {
-      recedeLine = recedeLine + 0.7;
-    }
-    for (let i = 0; i < follicles.length; i = i + 1) {
-      let f = follicles[i];
-      // noise makes the hairline uneven
-      let line = recedeLine + noise(f.x * 0.005, 20) * 120 - 60;
-      if (f.y < line) {
-        f.blocked = true;
-        shed(f);
-      }
-    }
-  } else if (mode == "thin") {
-    for (let i = 0; i < follicles.length; i = i + 1) {
-      let f = follicles[i];
-      if (random(1) < 0.002) {
-        f.blocked = true;
-        shed(f);
-      }
-    }
-  }
-}
-
-// click and drag to pull hairs near the mouse
-
 // ---------- drawing ----------
 
 function drawHair(f, index) {
@@ -238,8 +259,7 @@ function drawStrand(x, y, angle, len, alpha, thick, index) {
     beginShape();
     splineVertex(x, y);
     for (let s = 0; s < steps; s = s + 1) {
-      // bend a little at each step, and sway slowly over time
-            // fixed curl (never moves)
+      // fixed curl (never moves)
       a = a + (noise(index * 0.37 + s * 0.2, 500) - 0.5) * 30;
       // small sway on top
       a = a + (noise(index * 0.37 + s * 0.2, t) - 0.5) * swayAmount;
@@ -254,28 +274,7 @@ function drawStrand(x, y, angle, len, alpha, thick, index) {
 // ---------- controls ----------
 
 function keyPressed() {
-  if (key == '1') {
-    mode = "natural";
-  } else if (key == '2') {
-    mode = "patch";
-    patchX = random(width);
-    patchY = random(height);
-    patchRadius = 0;
-    patchMax = random(150, 300);
-  } else if (key == '3') {
-    mode = "recede";
-    recedeLine = 0;
-  } else if (key == '4') {
-    mode = "thin";
-  } else if (key == 'r') {
-    mode = "natural";
-    for (let i = 0; i < follicles.length; i = i + 1) {
-      follicles[i].blocked = false;
-      if (follicles[i].stage == "empty") {
-        follicles[i].timer = random(10, 120);
-      }
-    }
-  } else if (key == 'f') {
+  if (key == 'f') {
     if (fullscreen() == true) {
       fullscreen(false);
     } else {
@@ -288,4 +287,6 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   makeFollicles();
   makeHair();
+  makeSchedule();
+  applyPastLosses();
 }
